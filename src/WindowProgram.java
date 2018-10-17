@@ -87,13 +87,15 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
     //remove node from pbq by name and chat
     boolean removeFromPbqByNameAndChat(String name,String chat){
         for(Node node:pbq){
-            if(node.name.equals("b")&&node.chat.equals("message")){
+            if(node.name.equals(name)&&node.chat.equals(chat)){
                 return pbq.remove(node);
             }
         }
         return false;
     }
 
+    //0:total_sequencer 1:causal vector clock
+	int orderFlag=1;
 
 	JFrame frame;
 	JTextPane txtpnChat = new JTextPane();
@@ -119,7 +121,11 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
     boolean isLeader=false;
     boolean hasReceiveAlive=false;
 
+	int sequenceNumber=0;
 
+	int clientMessageCount=0;
+
+	ArrayList<Integer> vectorClock=new ArrayList<>();
 
 	GroupCommuncation gc = null;
 
@@ -197,10 +203,26 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 					    cnt=0;
                     }
                     try {
-                        sleep(1000);
+                        sleep(1500);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
+                }
+            }
+        }
+    }
+
+    class PbqHolder extends Thread{
+	    @Override
+        public void run(){
+	        while(true){
+	            if(!pbq.isEmpty()){
+
+                }
+                try {
+                    sleep(500);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
             }
         }
@@ -291,11 +313,24 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
         return res;
     }
 
+    private int getIndexFromActiveClientByName(String clientName){
+	    int res=0;
+        for(Pair<String,Integer> pair:activeClient){
+            if(pair.getKey().equals(clientName)){
+                return res;
+            }
+            res++;
+        }
+        return -1;
+    }
 
 	@Override
 	public void actionPerformed(ActionEvent event) {
 		if (event.getActionCommand().equalsIgnoreCase("send")) {
-			gc.sendChatMessage(name,txtpnMessage.getText());
+		    if(orderFlag==0)
+			    gc.sendChatMessage(name,txtpnMessage.getText());
+		    if(orderFlag==1)
+                gc.sendChatMessage(name,txtpnMessage.getText(),vectorClock);
 		}else if(event.getActionCommand().equalsIgnoreCase("exit")){
 			gc.sendLeaveMessage(name);
 			gc.shutdown();
@@ -306,11 +341,19 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 
 	@Override
 	public void onIncomingChatMessage(ChatMessage chatMessage) {
-	    pbq.add(new Node(chatMessage.name,chatMessage.chat));
+        System.out.println("leader: "+leader.getKey()+leader.getValue());
+        System.out.println("chat: "+chatMessage.name+chatMessage.chat);
+		if(orderFlag==0){
+			pbq.add(new Node(chatMessage.name,chatMessage.chat));
 
-	    if(isLeader){
+			System.out.println("hasLeader: "+hasLeader);
+			if(leader.getKey().equals(name)&&leader.getValue()==priority){
+                System.out.println("I'm leader!");
+				gc.sendOrderMessage(chatMessage.name,chatMessage.chat,sequenceNumber);
+				sequenceNumber++;
+			}
+		}
 
-        }
 //		txtpnChat.setText(getTime()+" "+chatMessage.chat + "\n" + txtpnChat.getText());
 	}
 
@@ -322,7 +365,8 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 		txtpnChat.setText(getTime()+" "+"Incoming join message: "+joinMessage.str+"\n"+txtpnChat.getText());
 		Pair<String,Integer> pair=new Pair<String,Integer>(joinMessage.str,joinMessage.priority);
 		activeClient.add(pair);
-		gc.sendListMessage(activeClient);
+
+		gc.sendListMessage(activeClient,clientMessageCount);
 
 		//new client join,start election
         if(priority==getMaxPriority()&&activeClient.size()!=1){
@@ -338,6 +382,12 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 			flag=true;
 			System.out.println("Incoming list:");
 			activeClient=listMessege.activeList;
+			clientMessageCount=listMessege.clientMessageNumber;
+			System.out.println("clientMessegeCount: "+ clientMessageCount);
+			int sz=listMessege.activeList.size();
+			for(int i=0;i<sz;++i){
+			    vectorClock.add(0);
+            }
 		}
 		System.out.println(activeClient);
 		txtpnList.setText("activeClient:\n");
@@ -383,7 +433,7 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 		System.out.println("activeClient:");
 		for (Pair<String,Integer> pairClient:activeClient) {
 		    String str=pairClient.getKey();
-			txtpnList.setText(txtpnList.getText()+str+"\n");
+			txtpnList.setText(txtpnList.getText()+str+" pri: "+pairClient.getValue().toString()+"\n");
 			System.out.println(str);
 		}
 	}
@@ -409,12 +459,12 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
     public void onIncomingElecMessage(ElecMessage elecMessage) {
 	    System.out.println("receive elecMessage "+elecMessage.name+" "+((Integer)elecMessage.priority).toString());
 	    hasLeader=false;
-	    isLeader=false;
 	    if(elecMessage.priority>=priority){
 	        return;
         }
         gc.sendAliveMessage(name,elecMessage.name,priority);
 	    gc.sendElecMessage(name,priority);
+        hasReceiveAlive=false;
     }
 
     @Override
@@ -429,8 +479,12 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
     @Override
     public void onIncomingVictoryMessage(VictoryMessage victoryMessage) {
 	    System.out.println("receive VictoryMessage: name: "+victoryMessage.name+" priority: "+((Integer)victoryMessage.priority).toString());
-        if(hasLeader==true&&leader.getKey().equals(victoryMessage.name)){
+        if(leader!=null&&leader.getKey().equals(victoryMessage.name)){
             return;
+        }
+        boolean flag=false;
+        if(leader==null){
+            flag=true;
         }
 	    hasLeader=true;
         leader=new Pair<>(victoryMessage.name,victoryMessage.priority);
@@ -439,5 +493,37 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
         if(victoryMessage.name.equals(name)){
             isLeader=true;
         }
+        
+        //for order
+        if(orderFlag==0){
+            if(!flag||leader.getKey().equals(name))
+                clientMessageCount=0;
+            if(leader.getKey().equals(name)&&leader.getValue()==priority){
+                sequenceNumber=0;
+            }
+        }
     }
+
+	@Override
+	public void onIncomingOrderMessage(OrderMessage orderMessage) {
+        if(orderFlag==0){
+            if(removeFromPbqByNameAndChat(orderMessage.name,orderMessage.chat)){
+                System.out.println("orderMessage: "+orderMessage.name+orderMessage.chat+orderMessage.order);
+                pbq.add(new Node(orderMessage.name,orderMessage.chat,orderMessage.order));
+                try {
+                    Node node=pbq.take();
+                    System.out.println("clientMessageCount :"+clientMessageCount+" "+"order: "+node.order);
+                    if(clientMessageCount==node.order){
+                        txtpnChat.setText(getTime()+" "+node.order+" "+node.name+" : "+node.chat + "\n" + txtpnChat.getText());
+                        clientMessageCount++;
+                    }else{
+                        pbq.add(node);
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+            }
+        }
+	}
 }

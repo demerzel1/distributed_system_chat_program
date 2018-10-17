@@ -9,7 +9,12 @@ import java.util.ArrayList;
  */
 public class ListMessege extends Message {
     public ArrayList<Pair<String,Integer> > activeList=new ArrayList<>();
-    public ListMessege(ArrayList<Pair<String,Integer> > arrayList){
+
+    //for total order
+    public Integer clientMessageNumber=0;
+
+    public ListMessege(ArrayList<Pair<String,Integer> > arrayList,Integer clientMessageNumber){
         activeList=arrayList;
+        this.clientMessageNumber=clientMessageNumber;
     }
 }

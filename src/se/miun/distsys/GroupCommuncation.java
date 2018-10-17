@@ -103,18 +103,32 @@ public class GroupCommuncation {
                 if(chatMessageListener!=null){
                     chatMessageListener.onIncomingVictoryMessage(victoryMessage);
                 }
+            }else if(message instanceof  OrderMessage){
+                OrderMessage orderMessage=(OrderMessage) message;
+                if(chatMessageListener!=null){
+                    chatMessageListener.onIncomingOrderMessage(orderMessage);
+                }
             }
 			else {
 				System.out.println("Unknown message type");
 			}			
 		}		
-	}	
+	}
 
+    public void sendChatMessage(String name,String chat) {
+        try {
+            ChatMessage chatMessage = new ChatMessage(name,chat);
+            byte[] sendData = messageSerializer.serializeMessage(chatMessage);
+            DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, InetAddress.getByName("255.255.255.255"), datagramSocketPort);
+            datagramSocket.send(sendPacket);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
-
-	public void sendChatMessage(String name,String chat) {
+	public void sendChatMessage(String name,String chat,ArrayList vectorClock) {
 		try {
-			ChatMessage chatMessage = new ChatMessage(name,chat);
+			ChatMessage chatMessage = new ChatMessage(name,chat,vectorClock);
 			byte[] sendData = messageSerializer.serializeMessage(chatMessage);
 			DatagramPacket sendPacket = new DatagramPacket(sendData, sendData.length, InetAddress.getByName("255.255.255.255"), datagramSocketPort);
 			datagramSocket.send(sendPacket);
@@ -135,9 +149,9 @@ public class GroupCommuncation {
 		}
 	}
 
-	public void sendListMessage(ArrayList<Pair<String,Integer>> arrayList){
+	public void sendListMessage(ArrayList<Pair<String,Integer>> arrayList,Integer clientMessageNumber){
 		try{
-			ListMessege listMessege=new ListMessege(arrayList);
+			ListMessege listMessege=new ListMessege(arrayList,clientMessageNumber);
 			byte[] sendData = messageSerializer.serializeMessage(listMessege);
 			DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,InetAddress.getByName("255.255.255.255"),datagramSocketPort);
 			datagramSocket.send(sendPacket);
@@ -208,6 +222,17 @@ public class GroupCommuncation {
         try{
             VictoryMessage victoryMessage=new VictoryMessage(name,priority);
             byte[] sendData = messageSerializer.serializeMessage(victoryMessage);
+            DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,InetAddress.getByName("255.255.255.255"),datagramSocketPort);
+            datagramSocket.send(sendPacket);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    public void sendOrderMessage(String name,String chat,int order){
+        try{
+            OrderMessage orderMessage=new OrderMessage(name,chat,order);
+            byte[] sendData = messageSerializer.serializeMessage(orderMessage);
             DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,InetAddress.getByName("255.255.255.255"),datagramSocketPort);
             datagramSocket.send(sendPacket);
         }catch (Exception e){

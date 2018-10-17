@@ -12,4 +12,5 @@ public interface ChatMessageListener {
     public void onIncomingElecMessage(ElecMessage elecMessage);
     public void onIncomingAliveMessage(AliveMessage aliveMessage);
     public void onIncomingVictoryMessage(VictoryMessage victoryMessage);
+    public void onIncomingOrderMessage(OrderMessage orderMessage);
 }
