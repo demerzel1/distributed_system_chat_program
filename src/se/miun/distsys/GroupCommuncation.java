@@ -108,6 +108,22 @@ public class GroupCommuncation {
                 if(chatMessageListener!=null){
                     chatMessageListener.onIncomingOrderMessage(orderMessage);
                 }
+            }else if(message instanceof  AskRepMessage){
+                AskRepMessage askRepMessage=(AskRepMessage) message;
+                if(chatMessageListener!=null){
+                    chatMessageListener.onIncomingAskRepMessage(askRepMessage);
+                }
+            }
+            else if(message instanceof  RepMessage){
+                RepMessage repMessage=(RepMessage) message;
+                if(chatMessageListener!=null){
+                    chatMessageListener.onIncomingRepMessage(repMessage);
+                }
+            }else if(message instanceof  AskOrderMessage){
+                AskOrderMessage askOrderMessage=(AskOrderMessage) message;
+                if(chatMessageListener!=null){
+                    chatMessageListener.onIncomingAskOrderMessage(askOrderMessage);
+                }
             }
 			else {
 				System.out.println("Unknown message type");
@@ -233,6 +249,38 @@ public class GroupCommuncation {
         try{
             OrderMessage orderMessage=new OrderMessage(name,chat,order);
             byte[] sendData = messageSerializer.serializeMessage(orderMessage);
+            DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,InetAddress.getByName("255.255.255.255"),datagramSocketPort);
+            datagramSocket.send(sendPacket);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+    public void sendAskRepMessage(int sequenceNumber,String client){
+        try{
+            AskRepMessage askRepMessage=new AskRepMessage(sequenceNumber,client);
+            byte[] sendData = messageSerializer.serializeMessage(askRepMessage);
+            DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,InetAddress.getByName("255.255.255.255"),datagramSocketPort);
+            datagramSocket.send(sendPacket);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    public void sendRepMessage(String name,String chat,int order,String client){
+        try{
+            RepMessage repMessage=new RepMessage(name,chat,order,client);
+            byte[] sendData = messageSerializer.serializeMessage(repMessage);
+            DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,InetAddress.getByName("255.255.255.255"),datagramSocketPort);
+            datagramSocket.send(sendPacket);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    public void sendAskOrderMessage(String name,String chat,String client){
+        try{
+            AskOrderMessage askOrderMessage=new AskOrderMessage(name,chat,client);
+            byte[] sendData = messageSerializer.serializeMessage(askOrderMessage);
             DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,InetAddress.getByName("255.255.255.255"),datagramSocketPort);
             datagramSocket.send(sendPacket);
         }catch (Exception e){

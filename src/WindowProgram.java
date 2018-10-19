@@ -58,7 +58,7 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
     }
 
     //0:total_sequencer 1:causal vector clock
-	int orderFlag=1;
+	int orderFlag=0;
 
 	JFrame frame;
 	JTextPane txtpnChat = new JTextPane();
@@ -89,6 +89,8 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 	int clientMessageCount=0;
 
 	ArrayList<Integer> vectorClock=new ArrayList<>();
+
+	ArrayList<Node> hodeArrayChatMessage=new ArrayList<>();
 
 	GroupCommuncation gc = null;
 
@@ -166,7 +168,7 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 					    cnt=0;
                     }
                     try {
-                        sleep(1500);
+                        sleep(1000);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -191,7 +193,7 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
                         txtpnChat.setText(getTime()+" "+node.order+" "+node.name+" : "+node.chat + "\n" + txtpnChat.getText());
                         clientMessageCount++;
                     }else{
-                        pbq.add(node);
+                        gc.sendAskOrderMessage(node.name,node.chat,name);
                     }
                 }
                 try {
@@ -336,6 +338,7 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
                 System.out.println("I'm leader!");
 				gc.sendOrderMessage(chatMessage.name,chatMessage.chat,sequenceNumber);
 				sequenceNumber++;
+				hodeArrayChatMessage.add(new Node(chatMessage.name,chatMessage.chat,sequenceNumber));
 			}
 		}else if(orderFlag==1){
 		    int sz=chatMessage.vectorClock.size();
@@ -545,7 +548,56 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
                     e.printStackTrace();
                 }
 
+            }else{
+                gc.sendAskRepMessage(orderMessage.order,name);
             }
         }
 	}
+
+    @Override
+    public void onIncomingRepMessage(RepMessage repMessage) {
+	    if(name.equals(repMessage.client)){
+	        pbq.add(new Node(repMessage.name,repMessage.chat,repMessage.order));
+            try {
+                Node node=pbq.take();
+                System.out.println("clientMessageCount :"+clientMessageCount+" "+"order: "+node.order);
+                if(clientMessageCount==node.order){
+                    txtpnChat.setText(getTime()+" "+node.order+" "+node.name+" : "+node.chat + "\n" + txtpnChat.getText());
+                    clientMessageCount++;
+                }else{
+                    pbq.add(node);
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    @Override
+    public void onIncomingAskRepMessage(AskRepMessage askRepMessage) {
+        if(leader.getKey().equals(name)){
+            int sz=hodeArrayChatMessage.size();
+            for(int i=sz-1;i>=0;--i){
+                Node node=hodeArrayChatMessage.get(i);
+                if(node.order==askRepMessage.sequenceNumber){
+                    gc.sendRepMessage(node.name,node.chat,node.order,askRepMessage.client);
+                    break;
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onIncomingAskOrderMessage(AskOrderMessage askOrderMessage) {
+        if(leader.getKey().equals(name)){
+            int sz=hodeArrayChatMessage.size();
+            for(int i=sz-1;i>=0;--i){
+                Node node=hodeArrayChatMessage.get(i);
+                if(node.name.equals(askOrderMessage.name)&&node.chat.equals(askOrderMessage.chat)){
+                    gc.sendRepMessage(node.name,node.chat,node.order,askOrderMessage.client);
+                    break;
+                }
+            }
+        }
+    }
 }

@@ -13,4 +13,7 @@ public interface ChatMessageListener {
     public void onIncomingAliveMessage(AliveMessage aliveMessage);
     public void onIncomingVictoryMessage(VictoryMessage victoryMessage);
     public void onIncomingOrderMessage(OrderMessage orderMessage);
+    public void onIncomingRepMessage(RepMessage repMessage);
+    public void onIncomingAskRepMessage(AskRepMessage askRepMessage);
+    public void onIncomingAskOrderMessage(AskOrderMessage askOrderMessage);
 }
