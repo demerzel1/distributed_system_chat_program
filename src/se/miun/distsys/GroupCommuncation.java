@@ -124,6 +124,11 @@ public class GroupCommuncation {
                 if(chatMessageListener!=null){
                     chatMessageListener.onIncomingAskOrderMessage(askOrderMessage);
                 }
+            }else if(message instanceof  DeliverMessage){
+                DeliverMessage deliverMessage=(DeliverMessage) message;
+                if(chatMessageListener!=null){
+                    chatMessageListener.onIncomingDeliverMessage(deliverMessage);
+                }
             }
 			else {
 				System.out.println("Unknown message type");
@@ -281,6 +286,17 @@ public class GroupCommuncation {
         try{
             AskOrderMessage askOrderMessage=new AskOrderMessage(name,chat,client);
             byte[] sendData = messageSerializer.serializeMessage(askOrderMessage);
+            DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,InetAddress.getByName("255.255.255.255"),datagramSocketPort);
+            datagramSocket.send(sendPacket);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    public void sendDeliverMessage(String name,String chat,ArrayList arrayList){
+        try{
+            DeliverMessage deliverMessage=new DeliverMessage(name,chat,arrayList);
+            byte[] sendData = messageSerializer.serializeMessage(deliverMessage);
             DatagramPacket sendPacket = new DatagramPacket(sendData,sendData.length,InetAddress.getByName("255.255.255.255"),datagramSocketPort);
             datagramSocket.send(sendPacket);
         }catch (Exception e){

@@ -57,8 +57,20 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
         return false;
     }
 
+    class VectorNode{
+        ArrayList<Integer> vectorClock;
+        String name;
+        String chat;
+
+        public VectorNode(String name,String chat,ArrayList vectorClock){
+            this.name=name;
+            this.chat=chat;
+            this.vectorClock=vectorClock;
+        }
+    }
+
     //0:total_sequencer 1:causal vector clock
-	int orderFlag=0;
+	int orderFlag=1;
 
 	JFrame frame;
 	JTextPane txtpnChat = new JTextPane();
@@ -79,6 +91,8 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 
 	boolean flag=false;
 
+	boolean vectorFlag=false;
+
 	Pair<String,Integer> leader=null;
 	boolean hasLeader=false;
     boolean isLeader=false;
@@ -90,7 +104,11 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 
 	ArrayList<Integer> vectorClock=new ArrayList<>();
 
-	ArrayList<Node> hodeArrayChatMessage=new ArrayList<>();
+	//save the chat message
+	ArrayList<Node> holdArrayChatMessage=new ArrayList<>();
+
+	//hold list for vector clock
+	ArrayList<VectorNode> holdVectorChatMessage = new ArrayList<>();
 
 	GroupCommuncation gc = null;
 
@@ -159,6 +177,7 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
         public void run(){
 	    	int cnt=0;
 	        while(true){
+	          //  System.out.println(hasLeader+" "+hasReceiveAlive);
 	            if(!hasLeader&&!hasReceiveAlive){
 					cnt++;
 					if(cnt>=3){
@@ -167,11 +186,11 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 					    gc.sendVictoryMessage(name,priority);
 					    cnt=0;
                     }
-                    try {
-                        sleep(1000);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
+                }
+                try {
+                    sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
             }
         }
@@ -205,6 +224,46 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
         }
     }
 
+    class VectorChecker extends Thread{
+	    @Override
+        public void run(){
+	        while(true){
+	            if(holdVectorChatMessage.size()!=0){
+	                System.out.println(holdVectorChatMessage.size());
+	                for(VectorNode vectorNode:holdVectorChatMessage){
+	                    int t=getIndexFromActiveClientByName(vectorNode.name);
+	                    int sz=vectorNode.vectorClock.size();
+	                    boolean flag=true;
+
+	                    for(int i=0;i<sz;++i){
+	                        if(i==t){
+                                if(vectorClock.get(i)+1!=vectorNode.vectorClock.get(i)){
+                                    flag=false;
+                                    break;
+                                }
+                            }else{
+	                            if(vectorClock.get(i)<vectorNode.vectorClock.get(i)){
+	                                flag=false;
+	                                break;
+                                }
+                            }
+                        }
+                        if(flag){
+                            txtpnChat.setText("vector: "+vectorNode.vectorClock+" " + vectorNode.name+" : "+vectorNode.chat + "\n" + txtpnChat.getText());
+                            holdVectorChatMessage.remove(vectorNode);
+                            vectorClock.set(t,vectorClock.get(t)+1);
+                        }
+                    }
+                }
+                try {
+                    sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
 	public WindowProgram() {
 		initializeFrame();
 
@@ -226,6 +285,10 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
         if(orderFlag==0){
             PbqHolder pbqHolder=new PbqHolder();
             pbqHolder.start();
+        }
+        if(orderFlag==1){
+            VectorChecker vectorChecker=new VectorChecker();
+            vectorChecker.start();
         }
  	}
 
@@ -316,6 +379,7 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
 		        int t=vectorClock.get(tIndex);
                 vectorClock.set(tIndex,t+1);
                 gc.sendChatMessage(name,txtpnMessage.getText(),vectorClock);
+                gc.sendDeliverMessage(name,txtpnMessage.getText(),vectorClock);
             }
 
 		}else if(event.getActionCommand().equalsIgnoreCase("exit")){
@@ -338,31 +402,37 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
                 System.out.println("I'm leader!");
 				gc.sendOrderMessage(chatMessage.name,chatMessage.chat,sequenceNumber);
 				sequenceNumber++;
-				hodeArrayChatMessage.add(new Node(chatMessage.name,chatMessage.chat,sequenceNumber));
+				holdArrayChatMessage.add(new Node(chatMessage.name,chatMessage.chat,sequenceNumber));
 			}
 		}else if(orderFlag==1){
 		    int sz=chatMessage.vectorClock.size();
-
 		    int myIndex=getIndexFromActiveClientByName(name);
-
 
 		    //update vector clock
 
             System.out.println("chatsize: "+chatMessage.vectorClock.size()+" vectorsize: "+vectorClock.size());
-
-		    for(int i=0;i<sz;++i){
-		        if(i == myIndex){
-		            if(!chatMessage.name.equals(name)){
-                        int t=vectorClock.get(i);
-                        vectorClock.set(i,t+1);
+            
+            if(chatMessage.name.equals(name)){
+                txtpnChat.setText("vector: "+vectorClock+" " + chatMessage.name+" : "+chatMessage.chat + "\n" + txtpnChat.getText());
+            }else{
+                if(!vectorFlag){
+                    int vsz=vectorClock.size();
+                    int tind=getIndexFromActiveClientByName(chatMessage.name);
+                    for(int i=0;i<vsz;++i){
+                        if(i==getIndexFromActiveClientByName(name))
+                            continue;
+                        if(i==tind){
+                            vectorClock.set(i,chatMessage.vectorClock.get(i)-1);
+                        }else{
+                            vectorClock.set(i,chatMessage.vectorClock.get(i));
+                        }
                     }
-		            continue;
+                    vectorFlag=true;
                 }
-		        int t=Math.max(vectorClock.get(i),chatMessage.vectorClock.get(i));
-		        vectorClock.set(i,t);
+                holdVectorChatMessage.add(new VectorNode(chatMessage.name,chatMessage.chat,chatMessage.vectorClock));
             }
 
-            txtpnChat.setText("vector: "+vectorClock+" " + chatMessage.name+" : "+chatMessage.chat + "\n" + txtpnChat.getText());
+
 
         }
 
@@ -385,11 +455,15 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
         }
 
 		//new client join,start election
-        if(priority==getMaxPriority()&&activeClient.size()!=1){
-            gc.sendVictoryMessage(name,priority);
-        }else{
-            gc.sendElecMessage(name,priority);
-        }
+//        if(priority==getMaxPriority()&&activeClient.size()!=1){
+//            //gc.sendVictoryMessage(name,priority);
+//            gc.sendElecMessage(name,priority);
+//        }else{
+//            gc.sendElecMessage(name,priority);
+//        }
+        hasLeader=false;
+		hasReceiveAlive=false;
+        gc.sendElecMessage(name,priority);
 	}
 
 	@Override
@@ -444,12 +518,15 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
         activeClient.remove(indexOfClient);
 
         //client leave,start election
-        if(priority==getMaxPriority()){
-            gc.sendVictoryMessage(name,priority);
-        }else{
-            gc.sendElecMessage(name,priority);
-        }
-
+//        if(priority==getMaxPriority()){
+//            //gc.sendVictoryMessage(name,priority);
+//            gc.sendElecMessage(name,priority);
+//        }else{
+//            gc.sendElecMessage(name,priority);
+//        }
+        hasLeader=false;
+        hasReceiveAlive=false;
+        gc.sendElecMessage(name,priority);
 
 		System.out.println("activeClient:");
 		for (Pair<String,Integer> pairClient:activeClient) {
@@ -483,10 +560,11 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
     @Override
     public void onIncomingElecMessage(ElecMessage elecMessage) {
 	    System.out.println("receive elecMessage "+elecMessage.name+" "+((Integer)elecMessage.priority).toString());
-	    hasLeader=false;
+	   // hasLeader=false;
 	    if(elecMessage.priority>=priority){
 	        return;
         }
+        hasLeader=false;
         gc.sendAliveMessage(name,elecMessage.name,priority);
 	    gc.sendElecMessage(name,priority);
         hasReceiveAlive=false;
@@ -505,6 +583,7 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
     public void onIncomingVictoryMessage(VictoryMessage victoryMessage) {
 	    System.out.println("receive VictoryMessage: name: "+victoryMessage.name+" priority: "+((Integer)victoryMessage.priority).toString());
         if(leader!=null&&leader.getKey().equals(victoryMessage.name)){
+            hasLeader=true;
             return;
         }
         boolean flag=false;
@@ -576,9 +655,9 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
     @Override
     public void onIncomingAskRepMessage(AskRepMessage askRepMessage) {
         if(leader.getKey().equals(name)){
-            int sz=hodeArrayChatMessage.size();
+            int sz=holdArrayChatMessage.size();
             for(int i=sz-1;i>=0;--i){
-                Node node=hodeArrayChatMessage.get(i);
+                Node node=holdArrayChatMessage.get(i);
                 if(node.order==askRepMessage.sequenceNumber){
                     gc.sendRepMessage(node.name,node.chat,node.order,askRepMessage.client);
                     break;
@@ -590,14 +669,64 @@ public class WindowProgram implements ChatMessageListener, ActionListener {
     @Override
     public void onIncomingAskOrderMessage(AskOrderMessage askOrderMessage) {
         if(leader.getKey().equals(name)){
-            int sz=hodeArrayChatMessage.size();
+            int sz=holdArrayChatMessage.size();
             for(int i=sz-1;i>=0;--i){
-                Node node=hodeArrayChatMessage.get(i);
+                Node node=holdArrayChatMessage.get(i);
                 if(node.name.equals(askOrderMessage.name)&&node.chat.equals(askOrderMessage.chat)){
                     gc.sendRepMessage(node.name,node.chat,node.order,askOrderMessage.client);
                     break;
                 }
             }
+        }
+    }
+
+    @Override
+    public void onIncomingDeliverMessage(DeliverMessage deliverMessage) {
+	    if(deliverMessage.name.equals(name)){
+	        return;
+        }
+        int ind=-1;
+        int sz=holdVectorChatMessage.size();
+        for(int i=0;i<sz;++i){
+            VectorNode vectorNode=holdVectorChatMessage.get(i);
+            if(deliverMessage.name.equals(vectorNode.name)&&deliverMessage.vectorClock.equals(vectorNode.vectorClock)&&deliverMessage.chat.equals(vectorNode.chat)){
+                ind=i;
+                break;
+            }
+        }
+        if(ind==-1){
+            holdVectorChatMessage.add(new VectorNode(deliverMessage.name,deliverMessage.chat,deliverMessage.vectorClock));
+            ind=holdVectorChatMessage.size()-1;
+        }
+        int vecsz=vectorClock.size();
+        int j=getIndexFromActiveClientByName(deliverMessage.name);
+
+        VectorNode vectorNode=holdVectorChatMessage.get(ind);
+
+        System.out.println(vectorNode.vectorClock);
+        System.out.println(vectorClock);
+
+        System.out.println("ind: "+ind);
+
+        boolean flag=true;
+        for(int i=0;i<vecsz;++i){
+            if(i==j){
+                if(vectorClock.get(i)+1!=vectorNode.vectorClock.get(i)){
+                    flag=false;
+                    break;
+                }
+            }else{
+                if(vectorNode.vectorClock.get(i)>vectorClock.get(i)){
+                    flag=false;
+                    break;
+                }
+            }
+        }
+
+        if(flag){
+            txtpnChat.setText("vector: "+vectorNode.vectorClock+" " + vectorNode.name+" : "+vectorNode.chat + "\n" + txtpnChat.getText());
+            holdVectorChatMessage.remove(ind);
+            vectorClock.set(j,vectorClock.get(j)+1);
         }
     }
 }

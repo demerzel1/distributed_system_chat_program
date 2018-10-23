@@ -16,4 +16,5 @@ public interface ChatMessageListener {
     public void onIncomingRepMessage(RepMessage repMessage);
     public void onIncomingAskRepMessage(AskRepMessage askRepMessage);
     public void onIncomingAskOrderMessage(AskOrderMessage askOrderMessage);
+    public void onIncomingDeliverMessage(DeliverMessage deliverMessage);
 }
